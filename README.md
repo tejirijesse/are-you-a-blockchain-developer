@@ -4,15 +4,15 @@ This project protects the ALU official logo on Ethereum using two smart contract
 
 ## Registered ALU Logo Hash
 
-Add the real ALU logo image as `alu-logo.png`, then run:
+The official ALU logo used in this project is included as `alu-logo.png`.
 
-```bash
-npm run hash:logo
-```
+SHA-256:
 
-Record the generated SHA-256 value here before submission:
+`727b0a610a5e22c083efc8b467c1580cad4b2626d8a6171d686a99d6a220a560`
 
-`ALU_LOGO_HASH=REPLACE_WITH_REAL_HASH`
+`bytes32` value passed to the contract:
+
+`0x727b0a610a5e22c083efc8b467c1580cad4b2626d8a6171d686a99d6a220a560`
 
 ## Project Structure
 
@@ -60,7 +60,7 @@ npm run node
 7. In a new terminal, deploy both contracts and register the logo:
 
 ```bash
-ALU_LOGO_HASH=0xYOUR_REAL_HASH_HERE npx hardhat run scripts/deploy.js --network localhost
+ALU_LOGO_HASH=0x727b0a610a5e22c083efc8b467c1580cad4b2626d8a6171d686a99d6a220a560 npx hardhat run scripts/deploy.js --network localhost
 ```
 
 ## Versions Used
@@ -76,6 +76,6 @@ ALU_LOGO_HASH=0xYOUR_REAL_HASH_HERE npx hardhat run scripts/deploy.js --network 
 
 ## Development Notes
 
-- The deployment script intentionally requires `ALU_LOGO_HASH` so the real file fingerprint is supplied at deployment time instead of a placeholder value.
-- The workspace did not include the official ALU logo image, so the final submission still needs the real `alu-logo.png` file and its resulting hash.
-- The exchange-platform report section of the assignment requires your own screenshots and personal observations from the platform you choose.
+- The deployment script intentionally requires `ALU_LOGO_HASH` so the exact file fingerprint used at submission time is explicit.
+- The included `alu-logo.png` was downloaded from ALU's public website and hashed locally before being used in the project.
+- The report and evidence files are included alongside the code for submission packaging.
