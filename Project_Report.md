@@ -30,6 +30,8 @@ The development environment for this project uses Node.js, Hardhat, and OpenZepp
 
 A local blockchain is a private Ethereum-compatible network that runs on the developer's own machine. Developers use it during development because it is fast, free, and safe to reset. Transactions confirm instantly, test accounts come pre-funded with fake ETH, and mistakes do not cost real money. A wallet address is the public account identifier used to send transactions, receive assets, and own tokens on the blockchain.
 
+![Local Hardhat node running with pre-funded test accounts](screenshots/03_hardhat_node.png)
+
 ## Smart Contract Explanation
 
 ### ALUAssetRegistry
@@ -60,6 +62,8 @@ The `bytes32` value used by the contract is:
 
 `0x727b0a610a5e22c083efc8b467c1580cad4b2626d8a6171d686a99d6a220a560`
 
+![SHA-256 hash of the ALU logo file](screenshots/01_hash_logo.png)
+
 SHA-256 is useful because it acts like a fingerprint for the file. If even one pixel of the logo changes, the resulting hash changes completely. That is what makes it reliable for integrity checking.
 
 Blockchain data is hard to change because transactions are recorded in blocks that are cryptographically linked and replicated across the network. Once accepted, altering past data would require rewriting chain history and re-establishing consensus, which is exactly what gives the stored record its practical immutability.
@@ -73,6 +77,8 @@ The contract creates a token named `ALU Logo Token` with symbol `ALUT` and a fix
 `distributeShares()` is restricted with `onlyOwner`, so only the contract owner can distribute token shares to other addresses. This models how ALU could allocate ownership shares to authorised parties such as administration, brand-management teams, or internal stakeholders. `ownershipPercentage()` calculates a wallet's share of the full 1,000,000-token supply and returns it as a whole-number percentage.
 
 ERC-721 is the correct standard for the logo registration because the logo itself is a single, unique asset. ERC-20 is the correct standard for the share model because ownership units must be fungible and transferable in equal amounts. If a faculty member holds `100,000 ALUT` out of `1,000,000`, that means the faculty member holds `10%` of the tokenised ownership supply.
+
+![Deployment script deploying both contracts and registering the ALU logo](screenshots/04_deploy.png)
 
 ## Test Results
 
@@ -88,6 +94,8 @@ The project includes eight automated tests:
 8. `ownershipPercentage()` returns the correct whole-number percentage.
 
 The local test run passed successfully with all eight tests completing.
+
+![All eight automated tests passing](screenshots/02_tests_passing.png)
 
 ## Conclusion
 
