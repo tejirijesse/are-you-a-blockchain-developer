@@ -76,6 +76,8 @@ def bullet(text):
 
 
 def image(path, caption=None, width=170):
+    """Embed a screenshot from the screenshots/ folder if it exists.
+    Silently skips missing files so the report still builds cleanly."""
     p_obj = SCREENSHOTS / path
     if not p_obj.exists():
         return
