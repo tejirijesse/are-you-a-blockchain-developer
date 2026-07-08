@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ALU Logo dApp — Home</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <div class="brand">
+        <span class="logo-badge">ALU</span>
+        <span>ALU Logo Registry &amp; Ownership</span>
+      </div>
+      <div class="wallet-panel">
+        <div class="wallet-meta">
+          <div class="status-line" id="wallet-status">Not connected</div>
+          <div class="address-line" id="wallet-address"></div>
+          <div class="balance-line" id="wallet-balance"></div>
+        </div>
+        <button class="btn btn-light" id="connect-wallet">Connect Wallet</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="network-warning" id="network-warning">
+    <div class="container">
+      <span></span>
+      <button class="btn btn-amber" id="switch-network">Switch Network</button>
+    </div>
+  </div>
+
+  <nav class="main-nav">
+    <div class="container">
+      <a href="index.html" class="active">Home</a>
+      <a href="register.html">Register Logo</a>
+      <a href="verify.html">Verify Logo</a>
+      <a href="dashboard.html">Token Dashboard</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container">
+      <section class="hero">
+        <h1>Prove the ALU logo is authentic — on-chain.</h1>
+        <p>
+          This decentralized app registers the official ALU logo on a blockchain
+          using its SHA-256 content hash, lets anyone verify a logo file against
+          the on-chain record, and tracks ownership shares through an ERC-20 token.
+        </p>
+      </section>
+
+      <div class="feature-links">
+        <a href="register.html">
+          <div class="feature-card">
+            <span class="badge">Part B</span>
+            <h3>Register Logo</h3>
+            <p>Upload the logo, hash it in your browser, and mint an on-chain asset record with its SHA-256 fingerprint.</p>
+          </div>
+        </a>
+        <a href="verify.html">
+          <div class="feature-card">
+            <span class="badge">Part C · No wallet needed</span>
+            <h3>Verify Logo</h3>
+            <p>Check any logo file (or a pasted hash) against the on-chain record to confirm it has not been modified.</p>
+          </div>
+        </a>
+        <a href="dashboard.html">
+          <div class="feature-card">
+            <span class="badge">Part D</span>
+            <h3>Token Dashboard</h3>
+            <p>View total supply, your ownership percentage, and — if you are the owner — distribute ALUT ownership shares.</p>
+          </div>
+        </a>
+      </div>
+
+      <section class="card">
+        <h2>How it works</h2>
+        <div class="grid-2">
+          <div>
+            <h3>Content hashing</h3>
+            <p class="page-subtitle">
+              The logo file is read and hashed with SHA-256 directly in your
+              browser using the Web Crypto API. The 32-byte hash is stored on-chain
+              as a <code>bytes32</code> fingerprint — the file itself never leaves your device.
+            </p>
+          </div>
+          <div>
+            <h3>Ownership shares</h3>
+            <p class="page-subtitle">
+              1,000,000 ALUT tokens represent ownership of the registered brand asset.
+              The contract owner can distribute shares, and anyone can read their
+              ownership percentage from the ERC-20 contract.
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      ALU Logo Registry &amp; Ownership dApp — running on a local Hardhat network.
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+  <script src="js/deployment.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

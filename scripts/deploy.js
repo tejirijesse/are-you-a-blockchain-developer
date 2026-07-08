@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const hre = require("hardhat");
 
 async function main() {
@@ -43,7 +45,28 @@ async function main() {
   const logoToken = await Token.deploy(deployer.address);
   await logoToken.waitForDeployment();
 
-  console.log(`ALULogoToken deployed to: ${await logoToken.getAddress()}`);
+  const tokenAddress = await logoToken.getAddress();
+  console.log(`ALULogoToken deployed to: ${tokenAddress}`);
+
+  const frontendDeployment = {
+    network: {
+      chainId: 31337,
+      chainIdHex: "0x7a69",
+      chainName: "Hardhat Local",
+      rpcUrl: "http://127.0.0.1:8545",
+      currencySymbol: "ETH"
+    },
+    contractAddresses: {
+      assetRegistry: await registry.getAddress(),
+      logoToken: tokenAddress
+    },
+    officialLogoTokenId: Number(tokenId)
+  };
+
+  const deploymentJs = `// Auto-generated deployment settings for the frontend.\n// scripts/deploy.js refreshes this file after each deployment.\n\nwindow.ALU_DEPLOYMENT = ${JSON.stringify(frontendDeployment, null, 2)};\n`;
+  const frontendDeploymentPath = path.join(__dirname, "..", "frontend", "js", "deployment.js");
+  fs.writeFileSync(frontendDeploymentPath, deploymentJs);
+  console.log(`Frontend deployment config updated at: ${frontendDeploymentPath}`);
 }
 
 main().catch((error) => {

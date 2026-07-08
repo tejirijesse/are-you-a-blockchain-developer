@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ALU Logo dApp — Register Logo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <div class="brand">
+        <span class="logo-badge">ALU</span>
+        <span>ALU Logo Registry &amp; Ownership</span>
+      </div>
+      <div class="wallet-panel">
+        <div class="wallet-meta">
+          <div class="status-line" id="wallet-status">Not connected</div>
+          <div class="address-line" id="wallet-address"></div>
+          <div class="balance-line" id="wallet-balance"></div>
+        </div>
+        <button class="btn btn-light" id="connect-wallet">Connect Wallet</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="network-warning" id="network-warning">
+    <div class="container">
+      <span></span>
+      <button class="btn btn-amber" id="switch-network">Switch Network</button>
+    </div>
+  </div>
+
+  <nav class="main-nav">
+    <div class="container">
+      <a href="index.html">Home</a>
+      <a href="register.html" class="active">Register Logo</a>
+      <a href="verify.html">Verify Logo</a>
+      <a href="dashboard.html">Token Dashboard</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container">
+      <h1 class="page-title">Register Logo</h1>
+      <p class="page-subtitle">
+        Upload the ALU logo file. Your browser computes its SHA-256 content hash
+        locally, then mints an on-chain asset record with that fingerprint. The
+        file itself never leaves your device.
+      </p>
+
+      <div class="grid-2">
+        <section class="card">
+          <h2>1. Hash the logo file</h2>
+
+          <div class="field">
+            <label for="logo-file">Logo file</label>
+            <input type="file" id="logo-file" accept="image/*" />
+            <div class="hint">Select the official ALU logo (PNG, JPG, SVG, etc.).</div>
+          </div>
+
+          <div class="preview-box hidden" id="preview-box">
+            <img id="preview-img" alt="Selected logo preview" />
+          </div>
+
+          <div class="field">
+            <label>SHA-256 content hash (bytes32)</label>
+            <div class="mono" id="hash-output">No file selected yet.</div>
+            <div class="hint">This 32-byte hash is stored on-chain as a <code>bytes32</code>.</div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>2. Register on-chain</h2>
+
+          <div class="field">
+            <label for="asset-name">Asset name</label>
+            <input type="text" id="asset-name" value="ALU Official Logo" />
+          </div>
+
+          <div class="field">
+            <label for="file-type">File type</label>
+            <input type="text" id="file-type" placeholder="png" />
+            <div class="hint">Auto-filled from the selected file; you can edit it.</div>
+          </div>
+
+          <div class="field">
+            <label>Content hash to register</label>
+            <div class="mono" id="hash-to-register">—</div>
+          </div>
+
+          <button class="btn btn-primary" id="register-btn" disabled>Register Logo</button>
+
+          <div class="alert alert-info" id="reg-info"></div>
+          <div class="alert alert-success" id="reg-success"></div>
+          <div class="alert alert-error" id="reg-error"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      ALU Logo Registry &amp; Ownership dApp — running on a local Hardhat network.
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+  <script src="js/deployment.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (function () {
+      "use strict";
+
+      var APP = window.ALU_APP;
+      var CONFIG = window.ALU_CONFIG;
+
+      var fileInput = document.getElementById("logo-file");
+      var previewBox = document.getElementById("preview-box");
+      var previewImg = document.getElementById("preview-img");
+      var hashOutput = document.getElementById("hash-output");
+      var hashToRegister = document.getElementById("hash-to-register");
+      var assetNameInput = document.getElementById("asset-name");
+      var fileTypeInput = document.getElementById("file-type");
+      var registerBtn = document.getElementById("register-btn");
+      var infoBox = document.getElementById("reg-info");
+      var successBox = document.getElementById("reg-success");
+      var errorBox = document.getElementById("reg-error");
+
+      var currentHash = null;
+
+      function showAlert(box, message) {
+        hideAlerts();
+        box.textContent = message;
+        box.classList.add("show");
+      }
+
+      function hideAlerts() {
+        infoBox.classList.remove("show");
+        successBox.classList.remove("show");
+        errorBox.classList.remove("show");
+      }
+
+      // Compute SHA-256 over the raw file bytes using the Web Crypto API and
+      // format it as a 0x-prefixed bytes32 hex string.
+      function bufferToBytes32(buffer) {
+        var bytes = new Uint8Array(buffer);
+        var hex = "0x";
+        for (var i = 0; i < bytes.length; i++) {
+          hex += bytes[i].toString(16).padStart(2, "0");
+        }
+        return hex;
+      }
+
+      function extractFileType(fileName) {
+        var dot = fileName.lastIndexOf(".");
+        if (dot === -1 || dot === fileName.length - 1) {
+          return "";
+        }
+        return fileName.slice(dot + 1).toLowerCase();
+      }
+
+      function updateRegisterState() {
+        var ready = Boolean(currentHash) && APP.state.account && APP.isCorrectNetwork();
+        registerBtn.disabled = !ready;
+      }
+
+      fileInput.addEventListener("change", function () {
+        hideAlerts();
+        currentHash = null;
+        hashToRegister.textContent = "—";
+        updateRegisterState();
+
+        var file = fileInput.files && fileInput.files[0];
+        if (!file) {
+          hashOutput.textContent = "No file selected yet.";
+          previewBox.classList.add("hidden");
+          return;
+        }
+
+        // Image preview
+        var previewReader = new FileReader();
+        previewReader.onload = function (e) {
+          previewImg.src = e.target.result;
+          previewBox.classList.remove("hidden");
+        };
+        previewReader.readAsDataURL(file);
+
+        // Auto-fill file type
+        var ext = extractFileType(file.name);
+        if (ext) {
+          fileTypeInput.value = ext;
+        }
+
+        // Hash the raw bytes
+        hashOutput.textContent = "Hashing...";
+        var hashReader = new FileReader();
+        hashReader.onload = function (e) {
+          crypto.subtle.digest("SHA-256", e.target.result).then(function (digest) {
+            currentHash = bufferToBytes32(digest);
+            hashOutput.textContent = currentHash;
+            hashToRegister.textContent = currentHash;
+            updateRegisterState();
+          }).catch(function (err) {
+            hashOutput.textContent = "Hashing failed: " + err.message;
+          });
+        };
+        hashReader.readAsArrayBuffer(file);
+      });
+
+      registerBtn.addEventListener("click", function () {
+        hideAlerts();
+
+        if (!currentHash) {
+          showAlert(errorBox, "Select a logo file first so it can be hashed.");
+          return;
+        }
+        if (!APP.state.account) {
+          showAlert(errorBox, "Connect a wallet before registering.");
+          return;
+        }
+        if (!APP.isCorrectNetwork()) {
+          showAlert(errorBox, "Switch to the Hardhat Local network before registering.");
+          return;
+        }
+
+        var assetName = assetNameInput.value.trim() || "ALU Official Logo";
+        var fileType = fileTypeInput.value.trim() || "png";
+
+        registerBtn.disabled = true;
+        showAlert(infoBox, "Submitting registration transaction — confirm it in your wallet...");
+
+        var registry;
+        try {
+          registry = APP.getRegistryWriteContract();
+        } catch (err) {
+          showAlert(errorBox, err.message);
+          updateRegisterState();
+          return;
+        }
+
+        registry.registerAsset(assetName, fileType, currentHash).then(function (tx) {
+          showAlert(infoBox, "Transaction sent (" + tx.hash + "). Waiting for confirmation...");
+          return tx.wait();
+        }).then(function (receipt) {
+          var tokenId = null;
+          if (receipt && receipt.logs) {
+            for (var i = 0; i < receipt.logs.length; i++) {
+              try {
+                var parsed = registry.interface.parseLog(receipt.logs[i]);
+                if (parsed && parsed.name === "AssetRegistered") {
+                  tokenId = parsed.args[0].toString();
+                  break;
+                }
+              } catch (e) {
+                // not this contract's event; ignore
+              }
+            }
+          }
+          if (tokenId !== null) {
+            showAlert(successBox, "Logo registered successfully! Token ID: " + tokenId + ".");
+          } else {
+            showAlert(successBox, "Logo registered successfully.");
+          }
+          updateRegisterState();
+        }).catch(function (err) {
+          var message = err && (err.reason || err.shortMessage || err.message) || "Registration failed.";
+          if (/already registered/i.test(message)) {
+            showAlert(errorBox, "This logo hash is already registered on-chain (duplicate).");
+          } else if (/user rejected|denied/i.test(message)) {
+            showAlert(errorBox, "Transaction was rejected in the wallet.");
+          } else {
+            showAlert(errorBox, "Registration failed: " + message);
+          }
+          updateRegisterState();
+        });
+      });
+
+      APP.on("connect", updateRegisterState);
+      APP.on("disconnect", updateRegisterState);
+      APP.on("accountChanged", updateRegisterState);
+      APP.on("networkChanged", updateRegisterState);
+
+      updateRegisterState();
+    })();
+  </script>
+</body>
+</html>

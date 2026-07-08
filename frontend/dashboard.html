@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ALU Logo dApp — Token Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <div class="brand">
+        <span class="logo-badge">ALU</span>
+        <span>ALU Logo Registry &amp; Ownership</span>
+      </div>
+      <div class="wallet-panel">
+        <div class="wallet-meta">
+          <div class="status-line" id="wallet-status">Not connected</div>
+          <div class="address-line" id="wallet-address"></div>
+          <div class="balance-line" id="wallet-balance"></div>
+        </div>
+        <button class="btn btn-light" id="connect-wallet">Connect Wallet</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="network-warning" id="network-warning">
+    <div class="container">
+      <span></span>
+      <button class="btn btn-amber" id="switch-network">Switch Network</button>
+    </div>
+  </div>
+
+  <nav class="main-nav">
+    <div class="container">
+      <a href="index.html">Home</a>
+      <a href="register.html">Register Logo</a>
+      <a href="verify.html">Verify Logo</a>
+      <a href="dashboard.html" class="active">Token Dashboard</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container">
+      <h1 class="page-title">Token Dashboard</h1>
+      <p class="page-subtitle">
+        ALUT is an ERC-20 token whose 1,000,000 units represent ownership shares
+        of the registered ALU brand asset. These figures are read directly from
+        the blockchain — no wallet connection is required to view them.
+      </p>
+
+      <section class="card">
+        <h2>Ownership overview</h2>
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="stat-label">Total supply</div>
+            <div class="stat-value" id="stat-total-supply">—</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Your balance</div>
+            <div class="stat-value" id="stat-your-balance">—</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Your ownership</div>
+            <div class="stat-value" id="stat-your-percent">—</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Contract owner</div>
+            <div class="stat-value" id="stat-owner" style="font-size: 0.95rem;">—</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Example wallet ownership</h2>
+        <p class="page-subtitle" style="margin-bottom: 14px;">
+          Live ownership shares for a few sample accounts on the local network.
+        </p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Wallet address</th>
+              <th>Balance (ALUT)</th>
+              <th>Ownership %</th>
+            </tr>
+          </thead>
+          <tbody id="example-rows">
+            <tr>
+              <td class="mono-cell" colspan="3">Loading ownership data…</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card hidden" id="distribute-card">
+        <h2>Distribute ownership shares</h2>
+        <p class="page-subtitle" style="margin-bottom: 14px;">
+          As the contract owner, you can transfer ALUT shares from your balance to
+          another wallet. This calls the <code>distributeShares</code> function,
+          which is protected by the <code>onlyOwner</code> modifier.
+        </p>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="recipient-input">Recipient address</label>
+            <input type="text" id="recipient-input" placeholder="0x..." />
+            <div class="hint">The wallet that will receive the shares.</div>
+          </div>
+          <div class="field">
+            <label for="amount-input">Amount (ALUT)</label>
+            <input type="number" id="amount-input" min="1" placeholder="1000" />
+            <div class="hint">Whole number of tokens to transfer.</div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="distribute-btn">Distribute Shares</button>
+
+        <div class="alert alert-info" id="dist-info"></div>
+        <div class="alert alert-success" id="dist-success"></div>
+        <div class="alert alert-error" id="dist-error"></div>
+      </section>
+
+      <div class="alert alert-info" id="owner-note" style="display: block;">
+        Connect the contract owner wallet to distribute ownership shares.
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      ALU Logo Registry &amp; Ownership dApp — running on a local Hardhat network.
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+  <script src="js/deployment.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    (function () {
+      "use strict";
+
+      var APP = window.ALU_APP;
+      var CONFIG = window.ALU_CONFIG;
+
+      var statTotalSupply = document.getElementById("stat-total-supply");
+      var statYourBalance = document.getElementById("stat-your-balance");
+      var statYourPercent = document.getElementById("stat-your-percent");
+      var statOwner = document.getElementById("stat-owner");
+      var exampleRows = document.getElementById("example-rows");
+
+      var distributeCard = document.getElementById("distribute-card");
+      var ownerNote = document.getElementById("owner-note");
+      var recipientInput = document.getElementById("recipient-input");
+      var amountInput = document.getElementById("amount-input");
+      var distributeBtn = document.getElementById("distribute-btn");
+      var distInfo = document.getElementById("dist-info");
+      var distSuccess = document.getElementById("dist-success");
+      var distError = document.getElementById("dist-error");
+
+      // Standard Hardhat sample accounts — used purely to illustrate ownership
+      // shares in the example table. They carry no shares unless the owner has
+      // distributed to them.
+      var EXAMPLE_WALLETS = [
+        "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+      ];
+
+      function showDistAlert(box, message) {
+        distInfo.classList.remove("show");
+        distSuccess.classList.remove("show");
+        distError.classList.remove("show");
+        box.textContent = message;
+        box.classList.add("show");
+      }
+
+      function hideDistAlerts() {
+        distInfo.classList.remove("show");
+        distSuccess.classList.remove("show");
+        distError.classList.remove("show");
+      }
+
+      // Read-only stats: these use the token read contract, which falls back to
+      // a JsonRpcProvider when no wallet is connected.
+      function refreshStats() {
+        var token;
+        try {
+          token = APP.getTokenReadContract();
+        } catch (err) {
+          statTotalSupply.textContent = "Unavailable";
+          return;
+        }
+
+        token.totalSupply().then(function (supply) {
+          statTotalSupply.textContent = APP.formatTokenAmount(supply) + " ALUT";
+        }).catch(function () {
+          statTotalSupply.textContent = "Unavailable";
+        });
+
+        token.owner().then(function (ownerAddress) {
+          statOwner.textContent = APP.shortenAddress(ownerAddress);
+          statOwner.title = ownerAddress;
+        }).catch(function () {
+          statOwner.textContent = "Unavailable";
+        });
+
+        var account = APP.state.account;
+        if (!account) {
+          statYourBalance.textContent = "—";
+          statYourPercent.textContent = "—";
+          return;
+        }
+
+        token.balanceOf(account).then(function (balance) {
+          statYourBalance.textContent = APP.formatTokenAmount(balance) + " ALUT";
+        }).catch(function () {
+          statYourBalance.textContent = "Unavailable";
+        });
+
+        token.ownershipPercentage(account).then(function (pct) {
+          statYourPercent.textContent = pct.toString() + "%";
+        }).catch(function () {
+          statYourPercent.textContent = "Unavailable";
+        });
+      }
+
+      // Fill the example ownership table by reading each wallet's balance and
+      // ownership percentage from the ERC-20 contract.
+      function refreshExampleTable() {
+        var token;
+        try {
+          token = APP.getTokenReadContract();
+        } catch (err) {
+          exampleRows.innerHTML =
+            '<tr><td class="mono-cell" colspan="3">Ownership data unavailable.</td></tr>';
+          return;
+        }
+
+        var lookups = EXAMPLE_WALLETS.map(function (address) {
+          return Promise.all([
+            token.balanceOf(address),
+            token.ownershipPercentage(address)
+          ]).then(function (results) {
+            return { address: address, balance: results[0], percent: results[1] };
+          }).catch(function () {
+            return { address: address, balance: null, percent: null };
+          });
+        });
+
+        Promise.all(lookups).then(function (rows) {
+          var html = "";
+          for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            var balanceText = row.balance === null
+              ? "—"
+              : APP.formatTokenAmount(row.balance);
+            var percentText = row.percent === null
+              ? "—"
+              : row.percent.toString() + "%";
+            html +=
+              '<tr>' +
+              '<td class="mono-cell">' + row.address + '</td>' +
+              '<td>' + balanceText + '</td>' +
+              '<td>' + percentText + '</td>' +
+              '</tr>';
+          }
+          exampleRows.innerHTML = html;
+        });
+      }
+
+      // Owner-only form visibility is driven by APP.state.isOwner, which is set
+      // by APP.refreshOwnership() comparing token.owner() to the connected
+      // account.
+      function refreshOwnerControls() {
+        if (APP.state.account && APP.state.isOwner && APP.isCorrectNetwork()) {
+          distributeCard.classList.remove("hidden");
+          ownerNote.style.display = "none";
+          distributeBtn.disabled = false;
+        } else {
+          distributeCard.classList.add("hidden");
+          ownerNote.style.display = "block";
+          if (!APP.state.account) {
+            ownerNote.textContent =
+              "Connect the contract owner wallet to distribute ownership shares.";
+          } else if (!APP.isCorrectNetwork()) {
+            ownerNote.textContent =
+              "Switch to the Hardhat Local network to distribute ownership shares.";
+          } else {
+            ownerNote.textContent =
+              "Only the contract owner can distribute ownership shares. The connected wallet is not the owner.";
+          }
+        }
+      }
+
+      function refreshAll() {
+        refreshStats();
+        refreshExampleTable();
+        refreshOwnerControls();
+      }
+
+      distributeBtn.addEventListener("click", function () {
+        hideDistAlerts();
+
+        if (!APP.state.account) {
+          showDistAlert(distError, "Connect a wallet before distributing shares.");
+          return;
+        }
+        if (!APP.state.isOwner) {
+          showDistAlert(distError, "Only the contract owner can distribute shares.");
+          return;
+        }
+        if (!APP.isCorrectNetwork()) {
+          showDistAlert(distError, "Switch to the Hardhat Local network first.");
+          return;
+        }
+
+        var recipient = recipientInput.value.trim();
+        if (!/^0x[a-fA-F0-9]{40}$/.test(recipient)) {
+          showDistAlert(distError, "Enter a valid 0x-prefixed wallet address.");
+          return;
+        }
+
+        var amountRaw = amountInput.value.trim();
+        if (!/^\d+$/.test(amountRaw) || Number(amountRaw) <= 0) {
+          showDistAlert(distError, "Enter a whole token amount greater than zero.");
+          return;
+        }
+
+        var amount;
+        try {
+          amount = BigInt(amountRaw);
+        } catch (err) {
+          showDistAlert(distError, "Enter a valid token amount.");
+          return;
+        }
+
+        distributeBtn.disabled = true;
+        showDistAlert(distInfo, "Submitting distribution — confirm it in your wallet…");
+
+        var token;
+        try {
+          token = APP.getTokenWriteContract();
+        } catch (err) {
+          showDistAlert(distError, err.message);
+          distributeBtn.disabled = false;
+          return;
+        }
+
+        token.distributeShares(recipient, amount).then(function (tx) {
+          showDistAlert(distInfo, "Transaction sent (" + tx.hash + "). Waiting for confirmation…");
+          return tx.wait();
+        }).then(function () {
+          showDistAlert(
+            distSuccess,
+            "Distributed " + APP.formatTokenAmount(amount) + " ALUT to " +
+              APP.shortenAddress(recipient) + "."
+          );
+          recipientInput.value = "";
+          amountInput.value = "";
+          refreshAll();
+          if (typeof APP.updateWalletUI === "function") {
+            APP.updateWalletUI();
+          }
+        }).catch(function (err) {
+          var message = err && (err.reason || err.shortMessage || err.message) || "Distribution failed.";
+          if (/user rejected|denied/i.test(message)) {
+            showDistAlert(distError, "Transaction was rejected in the wallet.");
+          } else if (/greater than zero/i.test(message)) {
+            showDistAlert(distError, "Amount must be greater than zero.");
+          } else {
+            showDistAlert(distError, "Distribution failed: " + message);
+          }
+        }).finally(function () {
+          distributeBtn.disabled = false;
+        });
+      });
+
+      // Re-render whenever wallet/network state changes.
+      APP.on("connect", refreshAll);
+      APP.on("disconnect", refreshAll);
+      APP.on("accountChanged", refreshAll);
+      APP.on("networkChanged", refreshAll);
+
+      refreshAll();
+    })();
+  </script>
+</body>
+</html>

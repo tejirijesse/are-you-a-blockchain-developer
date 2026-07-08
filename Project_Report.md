@@ -2,97 +2,145 @@
 
 ## Abstract
 
-This project protects the ALU official logo by registering its exact file fingerprint on an Ethereum blockchain and by tokenising ownership of that logo into fungible shares. The result is a system that proves the logo's authenticity, records when it was registered, and models shared ownership using two complementary smart contracts.
+This project delivers a complete ALU logo protection dApp that combines two Solidity contracts with a browser frontend. The application lets users connect a wallet, register a logo on-chain using its SHA-256 fingerprint, verify authenticity without any server, and view or distribute ALUT ownership shares through a simple web interface.
 
 ## Introduction
 
-ALU's official logo is an important digital brand asset. If a copied or modified version of the logo is circulated without permission, it can be difficult to prove which file is the original one unless there is a trustworthy record attached to the exact file contents. A private database can store that information, but the database owner can change records later, and outside parties must simply trust the university's internal system. Copyright registration is useful legally, but it does not give a fast technical way to compare one digital file against another.
+The smart contracts from Formative 1 already solved part of the problem: they created an immutable blockchain record for the ALU logo and represented ownership shares with tokens. The gap was usability. A student, administrator, or partner organisation would not normally use a terminal, run Hardhat commands, or call contract functions manually. This dApp fills that gap by turning the contracts into a usable product.
 
-Blockchain improves this by storing an immutable record of the logo's SHA-256 hash. Because the hash is produced from the real image file, anyone can hash another copy of the logo and compare the result to the value stored on-chain. If the values match, the file is authentic. If the values differ, even by one pixel, the file has been changed.
+The frontend acts as the bridge between people and blockchain logic. It hides the complexity of contract calls behind a clean interface, uses wallet-based signatures only when needed, and keeps file hashing inside the browser so the logo itself never has to be uploaded to a server.
 
-## Question 1: Exploring a Cryptocurrency Exchange Platform
+## Architecture Overview
 
-For the exchange-platform section, Coinbase was used as the reference platform because it is one of the best-known cryptocurrency exchanges and clearly separates wallets, funding methods, and order-entry tools. During onboarding, the platform typically asks for basic identity information such as legal name, date of birth, residential address, phone number, email address, and a government-issued identity document. This verification exists because exchanges must follow Know Your Customer and Anti-Money Laundering rules. In the United States, that compliance is tied to Bank Secrecy Act and customer-identification obligations used to reduce fraud, sanctions evasion, and money laundering.
+The system has four parts:
 
-The dashboard is designed to show balances, watchlists, asset prices, and recent account activity in one place. The wallet area focuses on custody and transfers, while the trading area is where orders are placed. Three widely listed assets are Bitcoin, Ethereum, and Solana. Bitcoin is primarily used as a scarce digital store of value and peer-to-peer monetary asset. Ethereum is different because it supports smart contracts and decentralised applications, so it is both a cryptocurrency and a programmable platform. Solana is known for high throughput and lower transaction costs, which makes it attractive for fast-moving applications and consumer-scale blockchain activity.
+- Browser frontend: built with plain HTML, CSS, and JavaScript.
+- Web3 wallet: MetaMask or another injected browser wallet used for identity and transaction signing.
+- `ALUAssetRegistry`: ERC-721 contract that stores the logo metadata and SHA-256 fingerprint.
+- `ALULogoToken`: ERC-20 contract that stores ownership-share balances and protects `distributeShares()` with `onlyOwner`.
 
-To add a payment method, a user normally goes to the payments or funding section and links a bank account or debit card. A bank account usually requires the account holder name, bank selection or routing details, and an account-confirmation step. A debit card normally requires the card number, expiry date, CVV, billing address, and a verification step. A debit card is usually faster for instant purchases, while a bank transfer is usually cheaper for larger or less urgent transactions.
+The frontend loads the ABI definitions and deployed contract addresses, creates `ethers.js` contract instances, and chooses between read-only provider calls or signer-backed transactions depending on the action.
 
-For the purchase simulation, Bitcoin was selected. On June 24, 2026, Coinbase's public spot endpoint returned a BTC price of `$59,811.805` per BTC. A market order buys immediately at the best available market price, while a limit order only executes if the market reaches the exact price set by the buyer. A market order is better when execution speed matters; a limit order is better when price control matters more than certainty. For a simple classroom example, a market order is the more realistic choice because it matches what a first-time user would most likely use. Ignoring variable trading fees for a moment, `$100 / 59,811.805` is about `0.001672 BTC`. After fees, the amount received would be slightly lower. In practice, the exact final quantity depends on the spread and the fee tier applied at the moment of purchase.
+Typical flow:
 
-The transaction history section of an exchange records details such as the date, asset, quantity, total value, fees, status, and whether the transaction was a buy, sell, send, or receive operation. When a transaction is settled on-chain, it may also include a transaction hash. A transaction hash is the unique identifier of a blockchain transaction. It matters because it lets anyone independently confirm that the transfer was broadcast and recorded on the blockchain.
+1. The user opens the dApp in the browser.
+2. The frontend connects to the local Hardhat blockchain through either the wallet provider or a fallback JSON-RPC provider.
+3. For read-only actions such as verification or dashboard statistics, the frontend calls the contracts without gas or signatures.
+4. For write actions such as registering a logo or distributing shares, the frontend asks the wallet to sign a transaction.
+5. The blockchain confirms the transaction and the frontend refreshes the UI with updated on-chain data.
 
-Two common security features on cryptocurrency exchanges are two-factor authentication and withdrawal protection. Two-factor authentication requires a second verification step, such as an authenticator code, even if the password is stolen. Withdrawal protections such as address confirmation, new-device checks, or allowlisting reduce the chance that an attacker can immediately move funds out of the account. These controls matter because exchange accounts combine financial access with irreversible digital-asset transfers.
+## Feature Walkthrough
 
-## Blockchain Setup
+### Home page
 
-The development environment for this project uses Node.js, Hardhat, and OpenZeppelin Contracts. Node.js provides the JavaScript runtime needed for Hardhat scripts and tests. Hardhat compiles Solidity code, runs a local blockchain, executes tests, and deploys contracts. OpenZeppelin provides audited implementations of ERC-721, ERC-20, and ownership utilities so the project can build on trusted standards instead of rewriting them from scratch.
+The home page introduces the three main journeys of the dApp: register, verify, and dashboard. It also shows wallet state in the header and explains the role of in-browser hashing and tokenised ownership. This page gives non-technical users a clear entry point into the system.
 
-A local blockchain is a private Ethereum-compatible network that runs on the developer's own machine. Developers use it during development because it is fast, free, and safe to reset. Transactions confirm instantly, test accounts come pre-funded with fake ETH, and mistakes do not cost real money. A wallet address is the public account identifier used to send transactions, receive assets, and own tokens on the blockchain.
+### Register Logo page
 
-## Smart Contract Explanation
+The Register page implements the upload-and-register workflow.
 
-### ALUAssetRegistry
+- The user selects an image file.
+- The browser reads the file locally and computes a SHA-256 digest with the Web Crypto API.
+- The hash is formatted as a `0x`-prefixed `bytes32` value.
+- The page previews the image and pre-fills the hash for submission.
+- After wallet approval, the frontend calls `registerAsset()` and displays the minted token ID.
 
-`ALUAssetRegistry` is the contract that protects the logo itself. It extends the ERC-721 standard because the ALU logo is a unique asset rather than a set of interchangeable units. The contract stores a struct called `AssetMetadata` with the asset name, file type, SHA-256 content hash, registering wallet address, and registration timestamp.
+Generating the hash in the browser matters because the file never leaves the user's device. That keeps the design serverless and reduces privacy and trust concerns.
 
-The contract also uses two mappings. One maps each token ID to its metadata so anyone can retrieve the stored information later. The second maps each content hash to a boolean value so duplicate registration attempts can be blocked.
+If a user tries to register the same hash twice, the smart contract rejects the transaction with `Asset hash already registered`, and the frontend surfaces that error clearly.
 
-### registerAsset()
+### Verify Logo page
 
-`registerAsset()` accepts an asset name, file type, and `bytes32` content hash. It first checks whether the same hash was used before. If so, it reverts with `Asset hash already registered`. If the hash is new, the function increments the token counter, mints a new NFT to the caller with `_safeMint()`, stores the metadata, marks the hash as used, emits `AssetRegistered`, and returns the new token ID.
+The Verify page is the most public-facing part of the project.
 
-### verifyLogoIntegrity()
+- A user can upload a file or paste a known hash.
+- The page computes the SHA-256 digest locally if a file is uploaded.
+- The frontend calls `verifyLogoIntegrity()` using the official token ID.
+- If the result is authentic, the page also reads metadata from `getAsset()` and shows the asset name, file type, registration date, and registering wallet.
+- If the result fails, the page shows a red warning instead of technical error text.
 
-`verifyLogoIntegrity()` is a view function that accepts a token ID and a hash provided by the caller. It compares the supplied hash to the stored hash for that token. If they match, it returns `true` and the message `Logo is authentic.` If they do not match, it returns `false` and the message `Warning: logo does not match.` Because it only reads blockchain data, it does not require gas in a local call context.
+This page does not require a wallet because it performs read-only blockchain calls. A read-only call only inspects on-chain data, so no state changes occur, no gas is spent, and no signature is needed.
 
-### getAsset()
+A real-world use case would be a student club, external printer, or partner institution that receives a logo file and wants to check whether it matches ALU's official version before using it in a poster, website, or event banner.
 
-`getAsset()` returns the full stored metadata for a registered token. This allows public inspection of the asset's identity, its file type, who registered it, and when registration occurred.
+### Token Dashboard page
 
-### Real ALU Logo Hash
+The Dashboard page reads live data from `ALULogoToken`.
 
-The official ALU logo file used in this project is `alu-logo.png`, downloaded from ALU's public website. Its SHA-256 hash was generated locally and is:
+It shows:
 
-`727b0a610a5e22c083efc8b467c1580cad4b2626d8a6171d686a99d6a220a560`
+- total token supply: `1,000,000 ALUT`
+- connected wallet balance
+- connected wallet ownership percentage
+- contract owner address
+- example ownership rows for sample Hardhat accounts
 
-The `bytes32` value used by the contract is:
+If the connected account is the owner, the page also shows a share-distribution form. That form validates the recipient address and amount, then calls `distributeShares()` and refreshes balances after confirmation.
 
-`0x727b0a610a5e22c083efc8b467c1580cad4b2626d8a6171d686a99d6a220a560`
+The `onlyOwner` modifier protects this function at the smart contract level. If a non-owner wallet tries to call it, the transaction reverts and the token transfer never happens.
 
-SHA-256 is useful because it acts like a fingerprint for the file. If even one pixel of the logo changes, the resulting hash changes completely. That is what makes it reliable for integrity checking.
+A concrete example is ALU allocating shares to a brand office, central administration team, or a governance body. Holding ALUT tokens would represent a stake in the tokenised ownership model used by the project.
 
-Blockchain data is hard to change because transactions are recorded in blocks that are cryptographically linked and replicated across the network. Once accepted, altering past data would require rewriting chain history and re-establishing consensus, which is exactly what gives the stored record its practical immutability.
+If ALU wanted token holders to vote proportionally, the contract would need governance logic such as proposal creation, vote tracking, quorum rules, and vote weighting by token balance.
 
-## Tokenisation
+## Wallet and Web3 Integration
 
-After registering the logo as a unique NFT, the project tokenises ownership using a second contract called `ALULogoToken`. This contract extends ERC-20 because ownership shares are fungible: one ALUT token is interchangeable with another ALUT token in a way that an NFT is not.
+The frontend uses `ethers.js` as the Web3 library.
 
-The contract creates a token named `ALU Logo Token` with symbol `ALUT` and a fixed total supply of `1,000,000` tokens. On deployment, the full supply is minted to the owner address provided to the constructor. That means the original owner starts with 100% of the tokenised share supply.
+An ABI is the interface description of a smart contract. It tells the frontend which functions exist, what arguments they expect, and what values they return. Without the ABI, the browser would know the contract address but would not know how to encode calls or decode responses.
 
-`distributeShares()` is restricted with `onlyOwner`, so only the contract owner can distribute token shares to other addresses. This models how ALU could allocate ownership shares to authorised parties such as administration, brand-management teams, or internal stakeholders. `ownershipPercentage()` calculates a wallet's share of the full 1,000,000-token supply and returns it as a whole-number percentage.
+The dApp uses two kinds of blockchain interactions:
 
-ERC-721 is the correct standard for the logo registration because the logo itself is a single, unique asset. ERC-20 is the correct standard for the share model because ownership units must be fungible and transferable in equal amounts. If a faculty member holds `100,000 ALUT` out of `1,000,000`, that means the faculty member holds `10%` of the tokenised ownership supply.
+- Read-only calls: `totalSupply()`, `balanceOf()`, `owner()`, `ownershipPercentage()`, `verifyLogoIntegrity()`, and `getAsset()`. These use a provider and cost no gas.
+- Transactions: `registerAsset()` and `distributeShares()`. These use a signer from the connected wallet and require the user to approve the action.
+
+The user must sign transactions in the wallet because the wallet controls the private key. The application must never hold or use that private key on the user's behalf. Signing proves the user explicitly approved the state change.
+
+## Verification Page
+
+The verification workflow is fully serverless.
+
+When a file is uploaded, the browser reads the raw bytes and passes them to the Web Crypto API for SHA-256 hashing. The digest is then converted into a hexadecimal `bytes32` string that can be compared directly with the on-chain value. Because the file hashing happens in the browser, there is no need for backend storage, upload handling, or server-side processing.
+
+Users can trust the result because the comparison is made against an on-chain record that was created earlier and cannot be silently changed by the frontend. If the uploaded file matches the registered hash exactly, the dApp returns an authentic verdict. If the file differs by even one bit, the hash changes and verification fails.
+
+## Token Dashboard
+
+The token dashboard shows how the ERC-20 contract translates ownership into readable statistics.
+
+The page reads the total supply and wallet balances directly from the blockchain, then calculates ownership percentages through the contract's `ownershipPercentage()` function. This means the frontend is not inventing percentages locally; it is displaying the contract's own result.
+
+`distributeShares()` is protected by `onlyOwner`, which ensures only the token contract owner can send shares from the owner allocation. If a non-owner attempts the call, the transaction reverts and the balances remain unchanged.
 
 ## Test Results
 
-The project includes eight automated tests:
+The final test suite contains all thirteen required tests.
 
-1. The ALU logo registers successfully and returns token ID `1`.
-2. A second attempt to register the same hash is rejected.
-3. `verifyLogoIntegrity()` returns `true` for the correct hash.
-4. `verifyLogoIntegrity()` returns `false` for an incorrect hash.
-5. `getAsset()` returns the correct asset metadata.
-6. `ALULogoToken` mints the full `1,000,000` supply to the owner on deployment.
-7. `distributeShares()` transfers the requested amount to a recipient.
-8. `ownershipPercentage()` returns the correct whole-number percentage.
+The original eight tests cover the contract logic:
 
-The local test run passed successfully with all eight tests completing.
+1. successful asset registration
+2. duplicate hash rejection
+3. authentic hash verification
+4. modified hash verification
+5. metadata retrieval
+6. full ALUT supply minted to the owner
+7. successful share distribution
+8. correct ownership percentage calculation
+
+The five added tests cover frontend-aligned flows:
+
+9. dashboard total supply reads as `1,000,000`
+10. browser-style SHA-256 hashing returns a valid `bytes32`
+11. verify page confirms the authentic logo
+12. verify page flags an incorrect hash
+13. owner dashboard distribution refreshes balances and percentages
 
 ## Conclusion
 
-This project demonstrates how blockchain can protect a digital asset and how token standards solve different parts of the ownership problem. The ERC-721 contract creates a permanent authenticity record for the ALU logo, while the ERC-20 contract creates a practical representation of shared ownership. If more time were available, the next step would be to build the dApp interface mentioned in the assignment so users could hash files, verify authenticity, and distribute shares through a web application.
+This assignment showed that smart contracts alone are not enough to make a blockchain solution useful to ordinary users. The most important learning outcome was how a frontend, wallet, and contracts work together: the frontend handles usability, the wallet handles identity and signatures, and the contracts enforce trust and rules.
+
+With more time, the next improvements would be a public testnet deployment, stronger form validation, wallet options beyond injected providers, and a governance extension for token-holder voting.
 
 ## GitHub Link
 
-https://github.com/tejirijesse/are-you-a-blockchain-developer
+[https://github.com/tejirijesse/are-you-a-blockchain-developer](https://github.com/tejirijesse/are-you-a-blockchain-developer)

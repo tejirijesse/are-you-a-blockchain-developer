@@ -8,7 +8,10 @@
     "test": "hardhat test",
     "node": "hardhat node",
     "deploy": "hardhat run scripts/deploy.js",
-    "hash:logo": "node scripts/hash-logo.js"
+    "hash:logo": "node scripts/hash-logo.js",
+    "frontend:serve": "node scripts/serve-frontend.js",
+    "screenshots:build": "python3 scripts/make_screenshots.py",
+    "report:build": "python3 scripts/build_pdf.py"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
